@@ -1,8 +1,8 @@
 from pyspark.sql.types import *
-from pyspark.sql import DataFrame
+from pyspark.sql import DataFrame, Window
 from pyspark.sql.functions import *
 
-transactions_schema = StructType([
+transaction_schema = StructType([
     StructField("transaction_id", StringType()),
     StructField("customer_id", StringType()),
     StructField("product_id", StringType()),
@@ -35,3 +35,14 @@ def monthly_aggregates(transactions_df: DataFrame):
     grouping_expr = [col('customer_id'), month(col('transaction_date')).alias('month')]
     return transactions_df.groupBy(grouping_expr) \
         .agg(count('transaction_id').cast(IntegerType()).alias('purchase_frequency'), avg(col('amount')).alias('average_monthly_spending'))
+
+
+def preferred_categories(transactions_df: DataFrame, products_df: DataFrame) -> DataFrame:
+    grouping_expr = [col('customer_id'), col('category')]
+    window_spec = Window.partitionBy('customer_id').orderBy(col('total_amount').desc(), col('category'))
+    return transactions_df.join(products_df, "product_id") \
+        .groupBy(grouping_expr) \
+        .agg(sum('amount').alias('total_amount')) \
+        .withColumn('rank', row_number().over(window_spec)) \
+        .filter(col('rank') == 1) \
+        .drop('rank')

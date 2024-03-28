@@ -1,13 +1,14 @@
 import datetime
 import unittest
 import warnings
+from random import shuffle
 from typing import Iterable, Any
 
 from pyspark.sql import SparkSession
 from pyspark.sql.types import *
 from pyspark.testing.utils import assertDataFrameEqual
 
-from customer_behaviour_analysis import transactions_schema, monthly_aggregates
+from customer_behaviour_analysis import transaction_schema, monthly_aggregates, product_schema, preferred_categories
 
 
 class CustomerBehaviourAnalysisTest(unittest.TestCase):
@@ -32,6 +33,12 @@ class CustomerBehaviourAnalysisTest(unittest.TestCase):
         StructField("average_monthly_spending", DoubleType()),
     ])
 
+    preferred_categories_schema = StructType([
+        StructField("customer_id", StringType()),
+        StructField("category", StringType()),
+        StructField("total_amount", DoubleType()),
+    ])
+
     def test_monthly_aggregates_simple(self):
         transactions_data: Iterable[Any] = [
             ("T100", "C1", "P1", 150.0, datetime.date.fromisoformat("2024-01-10")),
@@ -43,7 +50,7 @@ class CustomerBehaviourAnalysisTest(unittest.TestCase):
             ("C1", 2, 1, 200.0),
             ("C2", 1, 1, 75.0),
         ]
-        transactions_df = self.spark.createDataFrame(transactions_data, schema=transactions_schema)
+        transactions_df = self.spark.createDataFrame(transactions_data, schema=transaction_schema)
         expected_df = self.spark.createDataFrame(expected_data, schema=self.monthly_aggregates_schema)
         actual = monthly_aggregates(transactions_df)
 
@@ -63,8 +70,53 @@ class CustomerBehaviourAnalysisTest(unittest.TestCase):
             ("C2", 1, 1, 75.0),
             ("C2", 2, 1, 125.0),
         ]
-        transactions_df = self.spark.createDataFrame(transactions_data, schema=transactions_schema)
+        transactions_df = self.spark.createDataFrame(transactions_data, schema=transaction_schema)
         expected_df = self.spark.createDataFrame(expected_data, schema=self.monthly_aggregates_schema)
         actual = monthly_aggregates(transactions_df)
+
+        assertDataFrameEqual(actual, expected_df)
+
+    def test_preferred_categories(self):
+        transactions_data: Iterable[Any] = [
+            ("T100", "C1", "P1", 150.0, datetime.date.fromisoformat("2024-01-10")),
+            ("T101", "C2", "P2", 75.0, datetime.date.fromisoformat("2024-01-15")),
+            ("T102", "C1", "P3", 200.0, datetime.date.fromisoformat("2024-02-05")),
+        ]
+        products_data = [
+            ("P1", "Laptop", "Electronics"),
+            ("P2", "Headphones", "Electronics"),
+            ("P3", "Coffee Maker", "Appliances"),
+        ]
+        expected_data = [
+            ("C1", "Appliances", 200.0),
+            ("C2", "Electronics", 75.0),
+        ]
+        transactions_df = self.spark.createDataFrame(transactions_data, schema=transaction_schema)
+        products_df = self.spark.createDataFrame(products_data, schema=product_schema)
+        expected_df = self.spark.createDataFrame(expected_data, schema=self.preferred_categories_schema)
+        actual = preferred_categories(transactions_df, products_df)
+
+        assertDataFrameEqual(actual, expected_df)
+
+    def test_preferred_categories_tie_breaker(self):
+        transactions_data = [
+            ("T100", "C1", "P1", 150.0, datetime.date.fromisoformat("2024-01-10")),
+            ("T100", "C1", "P2", 50.0, datetime.date.fromisoformat("2024-01-10")),
+            ("T101", "C2", "P2", 75.0, datetime.date.fromisoformat("2024-01-15")),
+            ("T102", "C1", "P3", 200.0, datetime.date.fromisoformat("2024-02-05")),
+        ]
+        products_data = [
+            ("P1", "Laptop", "Electronics"),
+            ("P2", "Headphones", "Electronics"),
+            ("P3", "Coffee Maker", "Appliances"),
+        ]
+        expected_data = [
+            ("C1", "Appliances", 200.0),
+            ("C2", "Electronics", 75.0),
+        ]
+        transactions_df = self.spark.createDataFrame(transactions_data, schema=transaction_schema)
+        products_df = self.spark.createDataFrame(products_data, schema=product_schema)
+        expected_df = self.spark.createDataFrame(expected_data, schema=self.preferred_categories_schema)
+        actual = preferred_categories(transactions_df, products_df)
 
         assertDataFrameEqual(actual, expected_df)
