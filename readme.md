@@ -62,7 +62,7 @@ Example Data:
 | C1          | John Doe      | 2023-01-01 |
 | C2          | Jane Smith    | 2023-06-15 |
 
-### Task description
+## Task description
 
 1. Calculate the monthly frequency of purchases and average spending per customer.
 2. Identify the most preferred category for each customer based on the total amount spent per category.
@@ -77,7 +77,7 @@ Expected Output Schema:
 - `purchase_frequency` (integer, monthly average)
 - `preferred_category` (string)
 
-### Instructions
+## Instructions
 
 1. Write the PySpark SQL or DataFrame API code to accomplish the above tasks.
 2. Consider using window functions for ranking and aggregations.
