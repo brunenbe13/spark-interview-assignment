@@ -1,6 +1,6 @@
-from pyspark.sql.types import *
-from pyspark.sql import DataFrame, Window
+from pyspark.sql import Window
 from pyspark.sql.functions import *
+from pyspark.sql.types import *
 
 transaction_schema = StructType([
     StructField("transaction_id", StringType()),
@@ -45,4 +45,16 @@ def preferred_categories(transactions_df: DataFrame, products_df: DataFrame) -> 
         .agg(sum('amount').alias('total_amount')) \
         .withColumn('rank', row_number().over(window_spec)) \
         .filter(col('rank') == 1) \
-        .drop('rank')
+        .drop('rank') \
+        .withColumnRenamed('category', 'preferred_category')
+
+
+def final_result(customer_df: DataFrame, monthly_aggregates_df: DataFrame, preferred_categories_df: DataFrame) -> DataFrame:
+    global_aggregates = monthly_aggregates_df \
+        .groupBy('customer_id') \
+        .agg(avg('average_monthly_spending').alias('average_monthly_spending'), sum('purchase_frequency').cast(IntegerType()).alias('purchase_frequency'))
+
+    return customer_df.join(global_aggregates, 'customer_id') \
+        .join(preferred_categories_df, 'customer_id') \
+        .select(output_schema.names)
+
